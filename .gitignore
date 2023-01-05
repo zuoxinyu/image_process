@@ -1,5 +1,11 @@
 *.blu
 *.red
 *.grn
-ui
+
+main
+dcttran
+dctgen
+
+.cache
 .ccls-cache
+compile_commands.json

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -13,6 +14,7 @@ typedef enum Channel {
     CHAN_B = 0x20,
 } Channel;
 
+// each format value is bitwise `or`ed channels
 typedef enum PixelFormat {
     FMT_YUV420 = CHAN_Y | CHAN_U | CHAN_V,
     FMT_RGB24 = CHAN_R | CHAN_G | CHAN_B,
@@ -21,12 +23,13 @@ typedef enum PixelFormat {
 size_t fmt_get_size(PixelFormat fmt, size_t w, size_t h);
 size_t fmt_get_pitch(PixelFormat fmt, size_t w, size_t h);
 
+// a uint8_t 2d pixel buffer
 typedef struct PixelBuffer {
     PixelFormat fmt;
-    // size is the buf size in bytes, w/h is the width/height in pixels
-    size_t w, h, size;
-    // a simulated T[w][h] array, each `buf2d[i]` refs to `&buf[i*w]`
-    uint8_t **buf2d;
+    // the width/height in pixels
+    size_t w, h;
+    // the buf size in bytes
+    size_t size;
     // a continuous array
     uint8_t buf[0];
 } PixelBuffer;

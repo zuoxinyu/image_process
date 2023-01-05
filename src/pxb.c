@@ -12,6 +12,7 @@ size_t fmt_get_size(PixelFormat fmt, size_t w, size_t h)
         return w * h * 3 / 2;
     }
 }
+
 size_t fmt_get_pitch(PixelFormat fmt, size_t w, size_t h)
 {
     switch (fmt) {
@@ -28,15 +29,10 @@ PixelBuffer *pxb_new(PixelFormat fmt, size_t w, size_t h, const uint8_t *buf)
 {
     size_t size = fmt_get_size(fmt, w, h);
     PixelBuffer *pxb = malloc(sizeof(PixelBuffer) + size);
-    pxb->buf2d = malloc(h * sizeof(uint8_t *));
     pxb->fmt = fmt;
     pxb->w = w;
     pxb->h = h;
     pxb->size = size;
-
-    for (int i = 0; i < h; ++i) {
-        pxb->buf2d[i] = &pxb->buf[i * w];
-    }
 
     if (buf) {
         memcpy(pxb->buf, buf, size);
@@ -44,11 +40,7 @@ PixelBuffer *pxb_new(PixelFormat fmt, size_t w, size_t h, const uint8_t *buf)
     return pxb;
 }
 
-void pxb_free(PixelBuffer *pxb)
-{
-    free(pxb->buf2d);
-    free(pxb);
-}
+void pxb_free(PixelBuffer *pxb) { free(pxb); }
 
 PixelBuffer *pxb_copy(const PixelBuffer *src, int mask)
 {
