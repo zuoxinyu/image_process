@@ -14,12 +14,12 @@ static inline int min(int x, int y) { return x > y ? y : x; }
 
 xBlock blk_calloc(size_t dimX, size_t dimY)
 {
-    float **m = calloc(dimX, sizeof(float *));
-    float *data = calloc(dimX * dimY + 2, sizeof(float));
-    float *head = data + 2;
+    xReal **m = calloc(dimX, sizeof(xReal *));
+    xReal *data = calloc(dimX * dimY + 2, sizeof(xReal));
+    xReal *head = data + 2;
 
-    data[0] = (float)dimX;
-    data[1] = (float)dimY;
+    data[0] = (xReal)dimX;
+    data[1] = (xReal)dimY;
 
     for (int i = 0; i < dimX; i++) {
         m[i] = &head[i * dimY];
@@ -184,8 +184,8 @@ void dct(xBlock DCTMatrix, xBlock Matrix, int dimX, int dimY)
                 for (j = 0; j < dimY; j++) {
                     DCTMatrix[u][v] +=
                         Matrix[i][j] *
-                        cos(M_PI / ((float)dimX) * (i + 1. / 2.) * u) *
-                        cos(M_PI / ((float)dimY) * (j + 1. / 2.) * v);
+                        cos(M_PI / ((xReal)dimX) * (i + 1. / 2.) * u) *
+                        cos(M_PI / ((xReal)dimY) * (j + 1. / 2.) * v);
                 }
             }
         }
@@ -210,19 +210,19 @@ void idct(xBlock Matrix, xBlock DCTMatrix, int dimX, int dimY)
                 for (j = 1; j < dimY; j++) {
                     Matrix[u][v] +=
                         DCTMatrix[i][j] *
-                        cos(M_PI / ((float)dimX) * (u + 1. / 2.) * i) *
-                        cos(M_PI / ((float)dimY) * (v + 1. / 2.) * j);
+                        cos(M_PI / ((xReal)dimX) * (u + 1. / 2.) * i) *
+                        cos(M_PI / ((xReal)dimY) * (v + 1. / 2.) * j);
                 }
             }
-            Matrix[u][v] *= 2. / ((float)dimX) * 2. / ((float)dimY);
+            Matrix[u][v] *= 2. / ((xReal)dimX) * 2. / ((xReal)dimY);
         }
     }
 }
 
 #endif
 
-// static float normalize(float x, void *_payload) { return x; }
-// static float rescale(float x, void *_payload) { return x / (4 * N * N); }
+// static xReal normalize(xReal x, void *_payload) { return x; }
+// static xReal rescale(xReal x, void *_payload) { return x / (4 * N * N); }
 
 // the result won't normalize values, e.g. values may (likely) larger 255.0 or
 // negative to visualize, perform normalize for each block
