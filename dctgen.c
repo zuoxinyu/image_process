@@ -20,6 +20,7 @@ enum FORMULA_ID {
 };
 
 static inline xReal min(xReal x, xReal y) { return x > y ? y : x; }
+// static inline int max(int x, int y) { return x > y ? x : y; } // NOLINT
 
 static xReal normalize(xReal x, int i, int j, void *payload)
 {
@@ -27,7 +28,6 @@ static xReal normalize(xReal x, int i, int j, void *payload)
         xBlock blk;
         void *payload;
     };
-
     xReal *minmax = ((struct _Payload *)payload)->payload;
     xReal minv = minmax[0], maxv = minmax[1];
 
@@ -36,112 +36,71 @@ static xReal normalize(xReal x, int i, int j, void *payload)
 
 static xReal rescale(xReal x, int i, int j, void *_payload)
 {
-    return x / (4 * N * N);
+    return x / (4. * N * N);
 }
 
-void transform(int kind, uint8_t *buf, int w, int h)
+void calculate_min_max(xBlock blk, int w, int h, xReal *minmax)
 {
-    xBlock blk = blk_calloc(w, h);
+    minmax[0] = blk[0][0];
+    minmax[1] = blk[0][0];
 
     for (int i = 0; i < w * h; i++) {
-        blk[0][i] = buf[i];
+        minmax[0] = min(minmax[0], blk[0][i]);
     }
-
-    xBlock dstblk = blk_copy(blk, w, h);
-    blk_print("raw", blk, w, h);
-
-    switch (kind) {
-    case DCT:
-        dct(dstblk, blk, w, h);
-        blk_print("dct", dstblk, w, h);
-        xReal minmax[2] = {blk[0][0], dstblk[0][0]};
-
-        for (int i = 0; i < w * h; i++) {
-            minmax[0] = min(minmax[0], dstblk[0][i]);
-        }
-        blk_foreach(dstblk, normalize, minmax);
-        blk_print("normalized dct", dstblk, w, h);
-        break;
-    case IDCT:
-        idct(dstblk, blk, w, h);
-        blk_print("idct", dstblk, w, h);
-        blk_foreach(dstblk, rescale, NULL);
-        blk_print("rescaled idct", dstblk, w, h);
-        break;
-    default:
-        break;
-    }
-
-    for (int i = 0; i < w * h; i++) {
-        buf[i] = dstblk[0][i];
-    }
-
-    blk_free(blk);
-    blk_free(dstblk);
 }
 
-void gen_buf(int formula, uint8_t *buf, int w, int h)
+void gen_blk(int formula, xBlock blk, int w, int h)
 {
-    xBlock blk = blk_calloc(w, h);
     for (int i = 0; i < h; ++i) {
         for (int j = 0; j < w; ++j) {
             blk[i][j] = (sinf((j * w) / (2 * M_PI)) + 1) * 128;
         }
     }
+}
 
+void blk2uint8(xBlock blk, uint8_t *buf, int w, int h)
+{
     for (int i = 0; i < w * h; i++) {
-        buf[i] = blk[0][i];
+        buf[i] = (uint8_t)blk[0][i];
     }
-    blk_free(blk);
+}
+
+int write_file(PPM *ppm, xBlock blk, const char *name)
+{
+    blk2uint8(blk, ppm->data, ppm->width, ppm->height);
+    return ppm_write_file(ppm, name);
 }
 
 int main(int argc, char *argv[])
 {
     uint8_t *buf = malloc(sizeof(uint8_t) * N * N * 3);
-    PPM *ppm = ppm_create(PPM_FMT_P5, N, N, NULL);
+    xBlock blk_idct = blk_calloc(N, N);
+    xBlock blk_dct = blk_copy(blk_idct);
+    PPM *ppm = ppm_create(PPM_FMT_P5, N, N, buf);
     ppm_dump_header(ppm);
 
-    gen_buf(0, buf, N, N);
+    gen_blk(FORMULA_SIN, blk_idct, N, N);
+    blk_print("sin", blk_idct, 0);
+    write_file(ppm, blk_idct, "sin.pgm");
 
-    ppm->data = buf;
-    ppm_write_file(ppm, "sin.pgm");
+    dct(blk_dct, blk_idct, N, N);
+    blk_print("dct", blk_dct, 0);
+    idct(blk_idct, blk_dct, N, N);
+    blk_print("idct", blk_idct, 0);
 
-    transform(DCT, buf, N, N);
-    ppm_write_file(ppm, "sin.dct.pgm");
+    xReal minmax[2];
+    calculate_min_max(blk_dct, N, N, minmax);
+    blk_foreach(blk_dct, normalize, &minmax);
+    blk_print("normalized dct", blk_dct, 0);
+    write_file(ppm, blk_dct, "sin.dct.pgm");
 
-    transform(IDCT, buf, N, N);
-    ppm_write_file(ppm, "sin.idct.pgm");
+    blk_foreach(blk_idct, rescale, NULL);
+    blk_print("rescaled idct", blk_idct, 0);
+    write_file(ppm, blk_idct, "sin.idct.pgm");
 
+    blk_free(blk_dct);
+    blk_free(blk_idct);
     free(buf);
 
     printf("bye!\n");
 }
-
-/*
-float testBlockA[8][8] = {{255, 255, 255, 255, 255, 255, 255, 255},
-                          {255, 255, 255, 255, 255, 255, 255, 255},
-                          {255, 255, 255, 255, 255, 255, 255, 255},
-                          {255, 255, 255, 255, 255, 255, 255, 255},
-                          {255, 255, 255, 255, 255, 255, 255, 255},
-                          {255, 255, 255, 255, 255, 255, 255, 255},
-                          {255, 255, 255, 255, 255, 255, 255, 255},
-                          {255, 255, 255, 255, 255, 255, 255, 255}},
-
-      testBlockB[8][8] = {{255, 0, 255, 0, 255, 0, 255, 0},
-                          {0, 255, 0, 255, 0, 255, 0, 255},
-                          {255, 0, 255, 0, 255, 0, 255, 0},
-                          {0, 255, 0, 255, 0, 255, 0, 255},
-                          {255, 0, 255, 0, 255, 0, 255, 0},
-                          {0, 255, 0, 255, 0, 255, 0, 255},
-                          {255, 0, 255, 0, 255, 0, 255, 0},
-                          {0, 255, 0, 255, 0, 255, 0, 255}},
-
-      testBlockC[8][8] = {{126, 129, 128, 131, 131, 129, 132, 131},
-                          {126, 130, 128, 131, 131, 129, 132, 131},
-                          {126, 129, 128, 131, 131, 129, 132, 131},
-                          {126, 129, 128, 131, 131, 129, 132, 131},
-                          {127, 131, 129, 131, 132, 130, 133, 131},
-                          {128, 132, 130, 132, 133, 131, 134, 132},
-                          {127, 131, 129, 131, 132, 130, 133, 131},
-                          {126, 128, 127, 130, 130, 128, 131, 130}};
-*/

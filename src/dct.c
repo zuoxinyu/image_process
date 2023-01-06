@@ -10,116 +10,146 @@
 #define N 8
 
 static inline int min(int x, int y) { return x > y ? y : x; }
-// static inline int max(int x, int y) { return x > y ? x : y; }
+// static inline int max(int x, int y) { return x > y ? x : y; } // NOLINT
 
-xBlock blk_calloc(int dimX, int dimY)
+xBlock blk_calloc(size_t dimX, size_t dimY)
 {
     float **m = calloc(dimX, sizeof(float *));
-    float *p = calloc(dimX * dimY, sizeof(float));
+    float *data = calloc(dimX * dimY + 2, sizeof(float));
+    float *head = data + 2;
+
+    data[0] = (float)dimX;
+    data[1] = (float)dimY;
+
     for (int i = 0; i < dimX; i++) {
-        m[i] = &p[i * dimY];
+        m[i] = &head[i * dimY];
     }
     return m;
 }
 
-xBlock blk_copy(xBlock blk, int dimX, int dimY)
+xBlock blk_copy(xBlock blk)
 {
-    xBlock copy = blk_calloc(dimX, dimY);
-    for (int i = 0; i < dimX * dimY; i++) {
-        copy[0][i] = blk[0][i];
-    }
+    size_t w = blk_get_width(blk);
+    size_t h = blk_get_height(blk);
+
+    xBlock copy = blk_calloc(w, h);
+    memcpy(copy[0], blk[0], w * h);
     return copy;
 }
 
 void blk_free(xBlock blk)
 {
-    free(blk[0]);
+    free(blk[0] - 2);
     free(blk);
 }
+
+size_t blk_get_width(xBlock blk) { return blk[0][-2]; }
+
+size_t blk_get_height(xBlock blk) { return blk[0][-1]; }
 
 void blk_foreach(xBlock blk, imBlkIterFn iter_func, void *payload)
 {
     if (iter_func == NULL)
         return;
 
+    int w = blk_get_width(blk);
+    int h = blk_get_height(blk);
+
     struct {
         xBlock blk;
         void *payload;
     } inner_payload = {blk, payload};
 
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
             blk[i][j] = iter_func(blk[i][j], i, j, &inner_payload);
         }
     }
 }
 
-void blk_print(const char *name, xBlock blk, int n, int idx)
+void blk_print(const char *name, xBlock blk, int idx)
 {
-    printf("%s blk [%d][%d] idx=%d \n", name, n, n, idx);
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
+    int w = blk_get_width(blk);
+    int h = blk_get_height(blk);
+
+    printf("%s blk [%d][%d] idx=%d \n", name, w, w, idx);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
             printf("%+3.8f\t", blk[i][j]);
         }
         printf("\n");
     }
 }
 
-xMat mat_calloc(size_t size) { return calloc(sizeof(xReal), size); }
-
-void mat_free(xMat mat) { free(mat); }
-
-xMat mat_copy(xMat mat, size_t size)
+xMat mat_calloc(size_t w, size_t h)
 {
-    xMat copy = mat_calloc(size);
-    memcpy(copy, mat, sizeof(xReal) * size);
+    xReal *data = calloc(sizeof(xReal), w * h + 2);
+    data[0] = w;
+    data[1] = h;
+    return data + 2;
+}
+
+void mat_free(xMat mat) { free(mat - 2); }
+
+xMat mat_copy(xMat mat)
+{
+    size_t w = mat_get_width(mat), h = mat_get_height(mat);
+    xMat copy = mat_calloc(w, h);
+    memcpy(copy, mat, sizeof(xReal) * w * h);
     return copy;
 }
 
-void mat_foreach_blk(xMat pixels, int w, int h, imMatIterFn iter_func,
-                     void *payload)
+size_t mat_get_width(xMat mat) { return (size_t)mat[-2]; }
+
+size_t mat_get_height(xMat mat) { return (size_t)mat[-1]; }
+
+void mat_foreach_blk(xMat mat, imMatIterFn iter_func, void *payload)
 {
     if (iter_func == NULL)
         return;
 
+    size_t w = mat_get_width(mat), h = mat_get_height(mat);
     struct {
         xMat mat;
         void *payload;
-    } inner_payload = {pixels, payload};
+    } inner_payload = {mat, payload};
 
     xBlock blk = blk_calloc(N, N);
 
     for (int i = 0; i < w * h / (N * N); i++) {
-        mat_get_blk(pixels, blk, i, w, h);
+        mat_get_blk(mat, blk, i);
         iter_func(blk, i, &inner_payload);
-        mat_set_blk(pixels, blk, i, w, h);
+        mat_set_blk(mat, blk, i);
     }
 
     blk_free(blk);
 }
 
-void mat_get_blk(const xMat pixels, xBlock blk, int idx, int width, int height)
+void mat_get_blk(const xMat mat, xBlock blk, int idx)
 {
-    int rows = min(height - idx / (width / N) * N, N);
-    int cols = min(width - idx % (width / N) * N, N);
+    size_t w = mat_get_width(mat), h = mat_get_height(mat);
+
+    int rows = min(h - idx / (w / N) * N, N);
+    int cols = min(w - idx % (w / N) * N, N);
 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            blk[i][j] = pixels[(idx / (width / N) * N + i) * width +
-                               (idx % (width / N) * N + j)];
+            blk[i][j] =
+                mat[(idx / (w / N) * N + i) * w + (idx % (w / N) * N + j)];
         }
     }
 }
 
-void mat_set_blk(xMat pixels, xBlock blk, int n, int width, int height)
+void mat_set_blk(xMat mat, xBlock blk, int idx)
 {
-    int rows = min(height - n / (width / N) * N, N);
-    int cols = min(width - n % (width / N) * N, N);
+    size_t w = mat_get_width(mat), h = mat_get_height(mat);
+    int rows = min(h - idx / (w / N) * N, N);
+    int cols = min(w - idx % (w / N) * N, N);
 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            pixels[(n / (width / N) * N + i) * width +
-                   (n % (width / N) * N + j)] = blk[i][j];
+            mat[(idx / (w / N) * N + i) * w + (idx % (w / N) * N + j)] =
+                blk[i][j];
         }
     }
 }
@@ -196,14 +226,15 @@ void idct(xBlock Matrix, xBlock DCTMatrix, int dimX, int dimY)
 
 // the result won't normalize values, e.g. values may (likely) larger 255.0 or
 // negative to visualize, perform normalize for each block
-void mat_dct_blks(xMat pixels, size_t w, size_t h)
+void mat_dct_blks(xMat mat)
 {
+    size_t w = mat_get_width(mat), h = mat_get_height(mat);
     xBlock blk = blk_calloc(N, N), dct_blk = blk_calloc(N, N);
 
     for (int i = 0; i < w * h / (N * N); i++) {
-        mat_get_blk(pixels, blk, i, w, h);
+        mat_get_blk(mat, blk, i);
         dct(dct_blk, blk, N, N);
-        mat_set_blk(pixels, dct_blk, i, w, h);
+        mat_set_blk(mat, dct_blk, i);
     }
 
     blk_free(blk);
@@ -212,14 +243,15 @@ void mat_dct_blks(xMat pixels, size_t w, size_t h)
 
 // the result is scaled by 4*N*N, N is block width/height
 // to visualize, perform normalize(value/(4*N*N)) for each block
-void mat_idct_blks(xMat pixels, size_t w, size_t h)
+void mat_idct_blks(xMat mat)
 {
+    size_t w = mat_get_width(mat), h = mat_get_height(mat);
     xBlock blk = blk_calloc(N, N), idct_blk = blk_calloc(N, N);
 
     for (int i = 0; i < w * h / (N * N); i++) {
-        mat_get_blk(pixels, blk, i, w, h);
+        mat_get_blk(mat, blk, i);
         idct(idct_blk, blk, N, N);
-        mat_set_blk(pixels, idct_blk, i, w, h);
+        mat_set_blk(mat, idct_blk, i);
     }
 
     blk_free(blk);

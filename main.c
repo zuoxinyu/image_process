@@ -150,7 +150,7 @@ static xReal normalize(xReal x, int i, int j, void *payload)
 
 static xReal rescale(xReal x, int i, int j, void *_payload)
 {
-    return x / (4 * N * N);
+    return x / (4. * N * N);
 }
 
 static xBlock normalize_block(xBlock blk, int idx, void *_payload)
@@ -204,38 +204,36 @@ int main(int argc, char *argv[])
 
     rgb24_to_yuv420(w, h, rgb_buf->buf, yuv_buf->buf);
 
-    // show split y/u/v plane
+    // split y/u/v plane
     PixelBuffer *yplane = pxb_copy(yuv_buf, CHAN_Y);
 
-    xMat mat = mat_calloc(yplane->size), idct_mat;
+    xMat mat = mat_calloc(w, h), idct_mat;
     xBlock blk = blk_calloc(N, N);
 
     // DCT
-    float_from_uint8_t(mat, yplane->buf, yplane->size);
-    mat_get_blk(mat, blk, 0, w, h);
-    blk_print("raw", blk, N, 0);
+    float_from_uint8_t(mat, yplane->buf, w * h);
+    mat_get_blk(mat, blk, 0);
+    blk_print("raw", blk, 0);
 
     PixelBuffer *dctplane = pxb_copy(yplane, CHAN_Y);
-    mat_dct_blks(mat, w, h);
-    idct_mat = mat_copy(mat, yplane->size);
-    mat_get_blk(mat, blk, 0, w, h);
-    blk_print("dct", blk, N, 0);
-    mat_foreach_blk(mat, w, h, normalize_block, NULL);
-    mat_get_blk(mat, blk, 0, w, h);
-    blk_print("normalized dct", blk, N, 0);
-    float_to_uint8_t(dctplane->buf, mat, dctplane->size);
+    mat_dct_blks(mat);
+    idct_mat = mat_copy(mat);
+    mat_get_blk(mat, blk, 0);
+    blk_print("dct", blk, 0);
+    mat_foreach_blk(mat, normalize_block, NULL);
+    mat_get_blk(mat, blk, 0);
+    blk_print("normalized dct", blk, 0);
+    float_to_uint8_t(dctplane->buf, mat, w * h);
 
     // inverse DCT
     PixelBuffer *idctplane = pxb_copy(yplane, CHAN_Y);
-    mat_idct_blks(idct_mat, w, h);
-    mat_get_blk(idct_mat, blk, 0, w, h);
-    blk_print("idct", blk, N, 0);
-    mat_foreach_blk(idct_mat, w, h, rescale_block, NULL);
-    mat_get_blk(idct_mat, blk, 0, w, h);
-    blk_print("rescaled idct", blk, N, 0);
-    float_to_uint8_t(idctplane->buf, idct_mat, idctplane->size);
-
-    mat_free(mat);
+    mat_idct_blks(idct_mat);
+    mat_get_blk(idct_mat, blk, 0);
+    blk_print("idct", blk, 0);
+    mat_foreach_blk(idct_mat, rescale_block, NULL);
+    mat_get_blk(idct_mat, blk, 0);
+    blk_print("rescaled idct", blk, 0);
+    float_to_uint8_t(idctplane->buf, idct_mat, w * h);
 
     draw_raster(yplane->buf, w, h);
 
@@ -250,6 +248,10 @@ int main(int argc, char *argv[])
     }
 
     // EXIT:
+    mat_free(mat);
+    mat_free(idct_mat);
+    blk_free(blk);
+
     pxb_free(idctplane);
     pxb_free(dctplane);
     pxb_free(yplane);

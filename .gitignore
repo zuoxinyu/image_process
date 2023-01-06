@@ -1,6 +1,7 @@
 *.blu
 *.red
 *.grn
+*.pgm
 
 main
 dcttran

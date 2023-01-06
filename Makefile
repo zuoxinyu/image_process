@@ -1,6 +1,8 @@
 CC = clang
 INCDIR = src
-CFLAGS = -Wall -g -I$(INCDIR) -DUSE_FFTW3
+#CFLAG_MSAN = 
+CFLAG_MSAN = -fsanitize=address -fno-omit-frame-pointer
+CFLAGS = -Wall -g -I$(INCDIR) -DUSE_FFTW3 $(CFLAG_MSAN)
 LIBS = -lm -lSDL2 $(shell pkg-config fftw3f --libs) $(shell pkg-config fftw3 --libs)
 LIBSRC=$(wildcard src/*.c)
 CMDDIR= .

@@ -14,24 +14,28 @@ typedef xReal *xMat;
 typedef xReal (*imBlkIterFn)(xReal, int i, int j, void *);
 typedef xBlock (*imMatIterFn)(xBlock, int i, void *);
 
-xBlock blk_calloc(int dimX, int dimY);
-xBlock blk_copy(xBlock blk, int dimX, int dimY);
+xBlock blk_calloc(size_t w, size_t h);
+xBlock blk_copy(xBlock blk);
 void blk_free(xBlock blk);
-void blk_print(const char *name, xBlock blk, int dim, int idx);
+size_t blk_get_width(xBlock blk);
+size_t blk_get_height(xBlock blk);
+void blk_print(const char *name, xBlock blk, int idx);
 // inplace iteration, poor man's closure
 void blk_foreach(xBlock blk, imBlkIterFn iter_func, void *payload);
 
-xMat mat_calloc(size_t size);
+xMat mat_calloc(size_t w, size_t h);
 void mat_free(xMat mat);
-xMat mat_copy(xMat mat, size_t size);
-void mat_get_blk(const xMat pixels, xBlock blk, int idx, int width, int height);
-void mat_set_blk(xMat pixels, xBlock blk, int n, int width, int height);
+xMat mat_copy(xMat mat);
+size_t mat_get_width(xMat mat);
+size_t mat_get_height(xMat mat);
+void mat_get_blk(const xMat mat, xBlock blk, int idx);
+void mat_set_blk(xMat mat, xBlock blk, int idx);
 // inplace iteration, poor man's closure
-void mat_foreach_blk(xMat pixels, int w, int h, imMatIterFn, void *payload);
-void mat_dct_blks(xMat pixels, size_t w, size_t h);
-void mat_idct_blks(xMat pixels, size_t w, size_t h);
+void mat_foreach_blk(xMat mat, imMatIterFn, void *payload);
+void mat_dct_blks(xMat mat);
+void mat_idct_blks(xMat mat);
 
 // result should be normalize by user-self
-void dct(xBlock out, xBlock in, int n, int m);
+void dct(xBlock out, xBlock in, int w, int h);
 // inverser transform in fftw3 is scaled by 2N^2, eg, 4*N*N
-void idct(xBlock out, xBlock in, int n, int m);
+void idct(xBlock out, xBlock in, int w, int h);
