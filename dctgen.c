@@ -2,10 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "src/blk.h"
 #include "src/dct.h"
 #include "src/ppm.h"
 
 #define N 8
+
+#if N > 16
+#define blk_print(name, b, idx)
+#endif
 
 enum TRANS_KIND {
     DCT,
@@ -22,19 +27,15 @@ enum FORMULA_ID {
 static inline xReal min(xReal x, xReal y) { return x > y ? y : x; }
 // static inline int max(int x, int y) { return x > y ? x : y; } // NOLINT
 
-static xReal normalize(xReal x, int i, int j, void *payload)
+static xReal normalize(xBlock blk, xReal x, int i, int j, void *payload)
 {
-    struct _Payload {
-        xBlock blk;
-        void *payload;
-    };
-    xReal *minmax = ((struct _Payload *)payload)->payload;
+    xReal *minmax = payload;
     xReal minv = minmax[0], maxv = minmax[1];
 
     return 255. * (x - minv) / (maxv - minv);
 }
 
-static xReal rescale(xReal x, int i, int j, void *_payload)
+static xReal rescale(xBlock blk, xReal x, int i, int j, void *_payload)
 {
     return x / (4. * N * N);
 }
@@ -53,7 +54,8 @@ void gen_blk(int formula, xBlock blk, int w, int h)
 {
     for (int i = 0; i < h; ++i) {
         for (int j = 0; j < w; ++j) {
-            blk[i][j] = (sinf((j * w) / (2 * M_PI)) + 1) * 128;
+            blk[i][j] = (sinf(j * w / (2 * M_PI)) + 1) * 128;
+            blk[j][i] = (sinf(i * h / (2 * M_PI)) + 1) * 128;
         }
     }
 }
@@ -98,6 +100,7 @@ int main(int argc, char *argv[])
     blk_print("rescaled idct", blk_idct, 0);
     write_file(ppm, blk_idct, "sin.idct.pgm");
 
+    ppm_free(ppm);
     blk_free(blk_dct);
     blk_free(blk_idct);
     free(buf);
