@@ -1,23 +1,24 @@
-#include <SDL2/SDL_render.h>
-#include <SDL2/SDL_video.h>
 #include <limits.h>
+#include <stdio.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_rect.h>
+#include <SDL2/SDL_render.h>
 #include <SDL2/SDL_surface.h>
+#include <SDL2/SDL_video.h>
 
 #include "src/blk.h"
 #include "src/dct.h"
 #include "src/ppm.h"
 #include "src/pxb.h"
+#include "src/rle.h"
 #include "src/yuv.h"
+
+#include "window.h"
 
 #define N 8
 #define BLKID 0
-#define QF 1
-#define WIN_SIZE_FACTOR 1
 
-#define OPAQUE_NAME "previewwindow"
 #define ANSI_COLOR_YELLOW "\033[0;32m"
 #define ANSI_COLOR_RESET "\033[0m"
 
@@ -30,44 +31,37 @@
         blk_print(color_title, (blk), (idx));                                  \
     } while (0)
 
-typedef struct PreviewWindow {
-    PixelBuffer *pxb;
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    SDL_Texture *texture;
-} PreviewWindow;
-
 // clang-format off
 static const xReal QUANTIZE_TBLS[][8][8] = {
     {
-        { 112.,  84.,  98.,  98., 126., 168., 343., 504., },
-        {  77.,  84.,  91., 119., 154., 245., 448., 644., },
-        {  70.,  98., 112., 154., 259., 385., 546., 665., },
-        { 112., 133., 168., 203., 392., 448., 609., 686., },
-        { 168., 182., 280., 357., 476., 567., 721., 784., },
-        { 280., 406., 399., 609., 763., 728., 847., 700., },
-        { 357., 420., 483., 560., 721., 791., 840., 721., },
-        { 427., 385., 392., 434., 539., 644., 707., 693., },
+        { 112.,  84.,  98.,  98., 126., 168., 343., 504. },
+        {  77.,  84.,  91., 119., 154., 245., 448., 644. },
+        {  70.,  98., 112., 154., 259., 385., 546., 665. },
+        { 112., 133., 168., 203., 392., 448., 609., 686. },
+        { 168., 182., 280., 357., 476., 567., 721., 784. },
+        { 280., 406., 399., 609., 763., 728., 847., 700. },
+        { 357., 420., 483., 560., 721., 791., 840., 721. },
+        { 427., 385., 392., 434., 539., 644., 707., 693. },
     },
     {
-        {  93.,  70.,  81.,  81., 104., 139., 284., 418., },
-        {  64.,  70.,  75.,  99., 128., 203., 371., 534., },
-        {  58.,  81.,  93., 128., 215., 319., 452., 551., },
-        {  93., 110., 139., 168., 325., 371., 505., 568., },
-        { 139., 151., 232., 296., 394., 470., 597., 650., },
-        { 232., 336., 331., 505., 632., 603., 702., 580., },
-        { 296., 348., 400., 464., 597., 655., 696., 597., },
-        { 354., 319., 325., 360., 447., 534., 586., 574., },
+        {  74.,  55.,  64.,  64.,  83., 110., 225., 331. },
+        {  51.,  55.,  60.,  78., 101., 161., 294., 423. },
+        {  46.,  64.,  74., 101., 170., 253., 359., 437. },
+        {  74.,  87., 110., 133., 258., 294., 400., 451. },
+        { 110., 120., 184., 235., 313., 373., 474., 515. },
+        { 184., 267., 262., 400., 501., 478., 557., 460. },
+        { 235., 276., 317., 368., 474., 520., 552., 474. },
+        { 281., 253., 258., 285., 354., 423., 465., 455. },
     },
     {
-        { 13., 10., 12., 12., 15., 20., 40., 58. },
-        {  9., 10., 11., 14., 18., 29., 52., 74. },
-        {  9., 12., 13., 18., 30., 45., 63., 77. },
-        { 13., 16., 20., 24., 45., 52., 70., 79. },
-        { 20., 21., 33., 41., 55., 65., 83., 90. },
-        { 33., 47., 46., 70., 88., 84., 97., 81. },
-        { 41., 49., 56., 65., 83., 91., 97., 83. },
-        { 49., 45., 45., 50., 62., 74., 81., 80. },
+        { 16.,  12.,  14.,  14.,  18.,  24.,  49.,  72. },
+        { 11.,  12.,  13.,  17.,  22.,  35.,  64.,  92. },
+        { 10.,  14.,  16.,  22.,  37.,  55.,  78.,  95. },
+        { 16.,  19.,  24.,  29.,  56.,  64.,  87.,  98. },
+        { 24.,  26.,  40.,  51.,  68.,  81., 103., 112. },
+        { 40.,  58.,  57.,  87., 109., 104., 121., 100. },
+        { 51.,  60.,  69.,  80., 103., 113., 120., 103. },
+        { 61.,  55.,  56.,  62.,  77.,  92., 101.,  99. },
     },
     {
         { 1., 1., 1., 1., 1., 1., 1., 1. },
@@ -83,18 +77,7 @@ static const xReal QUANTIZE_TBLS[][8][8] = {
 // clang-format on
 
 static int interrupted = 0;
-
-static inline uint32_t get_fmt(PixelFormat fmt)
-{
-    switch (fmt) {
-    case FMT_YUV420:
-        return SDL_PIXELFORMAT_IYUV;
-    case FMT_RGB24:
-        return SDL_PIXELFORMAT_RGB24;
-    default:
-        return SDL_PIXELFORMAT_IYUV;
-    }
-}
+static int QF = 1;
 
 static int handle_mouse_click(SDL_Window *w, SDL_Event ev)
 {
@@ -103,6 +86,25 @@ static int handle_mouse_click(SDL_Window *w, SDL_Event ev)
 
     // TODO: draw block details
     printf("click at: %d,%d\n", x, y);
+
+    return 0;
+}
+
+static int handle_scale(PreviewWindow *pw, int step)
+{
+
+    int w, h;
+    char title[128] = {0};
+
+    SDL_GetWindowSize(pw->window, &w, &h);
+    double factor = ((double)w / pw->pxb->w) + step * WIN_SCALE_FACTOR;
+    snprintf(title, 128, "%s - [*%0.2lf]", pw->title, factor);
+
+    SDL_SetWindowTitle(pw->window, title);
+    SDL_SetWindowSize(pw->window, pw->pxb->w * factor, pw->pxb->h * factor);
+    SDL_RenderCopy(pw->renderer, pw->texture, NULL, NULL);
+    SDL_RenderPresent(pw->renderer);
+    SDL_RenderFlush(pw->renderer);
 
     return 0;
 }
@@ -116,8 +118,6 @@ static int handle_window_event()
     }
     SDL_Window *win = SDL_GetWindowFromID(ev.window.windowID);
     PreviewWindow *pw = SDL_GetWindowData(win, OPAQUE_NAME);
-    int w, h;
-    SDL_GetWindowSize(win, &w, &h);
 
     switch (ev.type) {
     case SDL_WINDOWEVENT:
@@ -133,21 +133,16 @@ static int handle_window_event()
         case SDLK_q:
             interrupted = 1;
             return -1;
-        case SDLK_SPACE:
-            break;
-        case SDLK_RETURN:
-            break;
         case SDLK_ESCAPE:
+            SDL_HideWindow(win);
             break;
         case SDLK_u:
-            SDL_SetWindowSize(win, w * 1.1, h * 1.1);
-            SDL_RenderCopy(pw->renderer, pw->texture, NULL, NULL);
-            SDL_RenderPresent(pw->renderer);
+            handle_scale(pw, 1);
             break;
         case SDLK_d:
-            SDL_SetWindowSize(win, w / 1.1, h / 1.1);
-            SDL_RenderCopy(pw->renderer, pw->texture, NULL, NULL);
-            SDL_RenderPresent(pw->renderer);
+            handle_scale(pw, -1);
+            break;
+        case SDLK_1:
             break;
         }
         break;
@@ -160,46 +155,6 @@ static int handle_window_event()
         return 0;
     }
     return 0;
-}
-
-PreviewWindow *create_preview_window(const char *title, PixelBuffer *pxb)
-{
-    uint32_t format = get_fmt(pxb->fmt);
-    size_t pitch = fmt_get_pitch(pxb->fmt, pxb->w, pxb->h);
-    SDL_Rect rect = {.w = pxb->w, .h = pxb->h};
-
-    PreviewWindow *win = malloc(sizeof(PreviewWindow));
-    SDL_Window *window =
-        SDL_CreateWindow(title, rect.x, rect.y, rect.w * WIN_SIZE_FACTOR,
-                         rect.h * WIN_SIZE_FACTOR, 0);
-    SDL_Renderer *renderer =
-        SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    SDL_Texture *texture = SDL_CreateTexture(
-        renderer, format, SDL_TEXTUREACCESS_STATIC, rect.w, rect.h);
-
-    SDL_UpdateTexture(texture, &rect, pxb->buf, pitch);
-    SDL_RenderCopy(renderer, texture, NULL, NULL);
-
-    SDL_RenderPresent(renderer);
-    SDL_RenderFlush(renderer);
-    SDL_ShowWindow(window);
-
-    SDL_SetWindowData(window, OPAQUE_NAME, win);
-
-    win->pxb = pxb;
-    win->window = window;
-    win->renderer = renderer;
-    win->texture = texture;
-
-    return win;
-}
-
-void destroy_preview_window(PreviewWindow *win)
-{
-    SDL_DestroyTexture(win->texture);
-    SDL_DestroyRenderer(win->renderer);
-    SDL_DestroyWindow(win->window);
-    free(win);
 }
 
 void draw_raster(uint8_t *pixels, size_t w, size_t h)
@@ -248,14 +203,14 @@ static xReal normalize(xBlock blk, xReal x, int i, int j, void *payload)
     return 255. * (x - minv) / (maxv - minv);
 }
 
-static xReal rescale(xBlock blk, xReal x, int i, int j, void *_payload)
-{
-    return x / (4. * N * N);
-}
-
 static xReal quantize(xBlock blk, xReal x, int i, int j, void *_payload)
 {
     return roundf(x / QUANTIZE_TBLS[QF][i][j]);
+}
+
+static xReal reverse(xBlock blk, xReal x, int i, int j, void *_payload)
+{
+    return 128. - (x > 0 ? x : -x);
 }
 
 static xReal dequantize(xBlock blk, xReal x, int i, int j, void *_payload)
@@ -265,13 +220,19 @@ static xReal dequantize(xBlock blk, xReal x, int i, int j, void *_payload)
 
 static xBlock lshift128_block(xMat mat, xBlock blk, int idx, void *_payload)
 {
-    blk_foreach(blk, lshift128, NULL);
+    blk_foreachi(blk, lshift128, NULL);
     return blk;
 }
 
 static xBlock rshift128_block(xMat mat, xBlock blk, int idx, void *_payload)
 {
-    blk_foreach(blk, rshift128, NULL);
+    blk_foreachi(blk, rshift128, NULL);
+    return blk;
+}
+
+static xBlock reverse_block(xMat mat, xBlock blk, int idx, void *_payload)
+{
+    blk_foreachi(blk, reverse, NULL);
     return blk;
 }
 
@@ -283,78 +244,20 @@ static xBlock normalize_block(xMat mat, xBlock blk, int idx, void *_payload)
         minmax[0] = min(minmax[0], blk[0][i]);
         minmax[1] = max(minmax[1], blk[0][i]);
     }
-    blk_foreach(blk, normalize, minmax);
+    blk_foreachi(blk, normalize, minmax);
     return blk;
 }
 
 static xBlock quantize_block(xMat mat, xBlock blk, int idx, void *_payload)
 {
-    blk_foreach(blk, quantize, NULL);
+    blk_foreachi(blk, quantize, NULL);
     return blk;
 }
 
 static xBlock dequantize_block(xMat mat, xBlock blk, int idx, void *_payload)
 {
-    blk_foreach(blk, dequantize, NULL);
+    blk_foreachi(blk, dequantize, NULL);
     return blk;
-}
-
-static xBlock rescale_block(xMat mat, xBlock blk, int idx, void *_payload)
-{
-    blk_foreach(blk, rescale, NULL);
-    return blk;
-}
-
-static size_t calc_msb(int16_t n)
-{
-    if (n < 0)
-        n *= -1;
-#if __GNUC__
-    return n == 0 ? 0 : 16 - __builtin_clz(n);
-#else
-    int nbits = 0;
-    while (n >>= 1)
-        nbits++;
-    return nbits;
-#endif
-}
-
-static int run_length(xRLETable tbl, xBlock blk)
-{
-    int w = blk_get_width(blk);
-    int zeros = 0, j = 0;
-    int16_t num, last = w * w - 1;
-
-    while (blk[0][last] == 0) {
-        last--;
-    }
-
-    for (int i = 1; i <= last; i++) {
-        num = (int16_t)blk[0][i];
-        if (zeros >= 16) {
-            // 16 zeros
-            tbl[j].zeros = 15;
-            tbl[j].nbits = 0;
-            tbl[j].amp = 0;
-            zeros = 0;
-            j++;
-        } else if (num == 0) {
-            zeros++;
-        } else {
-            tbl[j].zeros = zeros;
-            tbl[j].nbits = calc_msb(num);
-            tbl[j].amp = num;
-            zeros = 0;
-            j++;
-        }
-    }
-
-    // EOB
-    tbl[j].zeros = 0;
-    tbl[j].nbits = 0;
-    tbl[j].amp = 0;
-
-    return j + 1;
 }
 
 /*
@@ -372,6 +275,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    const char *file_name = argv[1];
+
     int ret;
     ret = SDL_Init(SDL_INIT_VIDEO);
     if (ret < 0) {
@@ -379,7 +284,7 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    PPM *ppm = ppm_read_file(argv[1]);
+    PPM *ppm = ppm_read_file(file_name);
     size_t w = ppm->width, h = ppm->height;
 
     PixelBuffer *rgb_buf = pxb_new(FMT_RGB24, w, h, ppm->data);
@@ -415,26 +320,26 @@ int main(int argc, char *argv[])
 
     // DCT
     mat_dct_blks(mat, N);
+#ifdef USE_FFTW3
+    mat_product_n(mat, 2. / (N * N), mat);
+#endif
     mat_get_blk(mat, blk, BLKID);
-    blk_print("dct(unnormalized)", blk, BLKID);
+    blk_print("dct", blk, BLKID);
 
     idct_mat = mat_copy(mat);
     dct_mat = mat_copy(mat);
 
-    // rescale DCT for quantize
-    // mat_foreach_blk(mat, N, rescale_block, NULL);
-    // mat_get_blk(mat, blk, BLKID);
-    // blk_print("rescaled dct", blk, BLKID);
-
     // quantize
     mat_foreach_blk(mat, N, quantize_block, NULL);
     mat_get_blk(mat, blk, BLKID);
-    blk_print("50% quantized", blk, BLKID);
+    blk_print("quantized", blk, BLKID);
 
     // zigzag
     xBlock zigzag_blk = blk_copy(blk);
     blk_zigzag(blk, zigzag_blk);
     blk_print("zigzag", zigzag_blk, BLKID);
+
+    // TODO: diff DC encoding
 
     // run-length
     xRLETable tbl = rtb_calloc(N * N);
@@ -442,6 +347,9 @@ int main(int argc, char *argv[])
     rtb_print(tbl, tbl_len);
 
     // huffman
+    for (int i = 0; i < tbl_len; i++) {
+        
+    }
 
     printf("\n========decoding========\n");
 
@@ -454,22 +362,24 @@ int main(int argc, char *argv[])
     mat_foreach_blk(idct_mat, N, quantize_block, NULL);
     mat_foreach_blk(idct_mat, N, dequantize_block, NULL);
 
+#ifdef USE_FFTW3
+    mat_product_n(idct_mat, N * N / 2., idct_mat);
+#endif
     mat_idct_blks(idct_mat, N);
+#ifdef USE_FFTW3
+    mat_product_n(idct_mat, 1. / (4. * N * N), idct_mat);
+#endif
     mat_get_blk(idct_mat, blk, BLKID);
     blk_print("idct", blk, BLKID);
-
-    // rescale iDCT for showing
-    mat_foreach_blk(idct_mat, N, rescale_block, NULL);
-    mat_get_blk(idct_mat, blk, BLKID);
-    blk_print("rescaled idct", blk, BLKID);
 
     // right shift 128
     mat_foreach_blk(idct_mat, N, rshift128_block, NULL);
     mat_get_blk(idct_mat, blk, BLKID);
-    blk_print("rshift rescaled idct", blk, BLKID);
+    blk_print("rshift idct", blk, BLKID);
 
     mat_diff(orig_mat, idct_mat, diff_mat);
     mat_get_blk(diff_mat, blk, BLKID);
+    mat_foreach_blk(diff_mat, N, reverse_block, NULL);
     blk_print("diff idct", blk, BLKID);
 
     // copy back to uint8 buffer for showing
@@ -477,7 +387,8 @@ int main(int argc, char *argv[])
     float_to_uint8_t(idctplane->buf, idct_mat, w * h);
     float_to_uint8_t(diffplane->buf, diff_mat, w * h);
 
-    // draw_raster(yplane->buf, w, h);
+    /* draw_raster(yplane->buf, w, h); */
+    /* draw_raster(idctplane->buf, w, h); */
 
     // show each window
     PreviewWindow *yuv_win = create_preview_window("raw yuv", yuv_buf);
@@ -491,6 +402,7 @@ int main(int argc, char *argv[])
     }
 
     // EXIT:
+    rtb_free(tbl);
     mat_free(mat);
     mat_free(dct_mat);
     mat_free(idct_mat);

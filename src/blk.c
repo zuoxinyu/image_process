@@ -1,4 +1,3 @@
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,14 +35,14 @@ xBlock blk_copy(xBlock blk)
 void blk_free(xBlock blk)
 {
     free(blk[0] - 2);
-    free(blk);
+    free((xReal **)blk);
 }
 
 size_t blk_get_width(xBlock blk) { return blk[0][-2]; }
 
 size_t blk_get_height(xBlock blk) { return blk[0][-1]; }
 
-void blk_foreach(xBlock blk, imBlkIterFn iter_func, void *payload)
+void blk_foreachi(xBlock blk, xBlkIterFn iter_func, void *payload)
 {
     if (iter_func == NULL)
         return;
@@ -115,12 +114,22 @@ void blk_product_n(xBlock in, xReal n, xBlock out)
     }
 }
 
+void blk_clear(xBlock blk, xReal n)
+{
+    int w = blk_get_width(blk);
+    int h = blk_get_height(blk);
+
+    // don't use memset for float point
+    for (int i = 0; i < w * h; i++)
+        blk[0][i] = n;
+}
+
 void blk_print(const char *name, xBlock blk, int idx)
 {
     int w = blk_get_width(blk);
     int h = blk_get_height(blk);
 
-    printf("%s blk [%d][%d] idx=%d \n", name, w, w, idx);
+    printf("%s blk [%d][%d] idx=%d \n", name, h, w, idx);
     for (int i = 0; i < h; i++) {
         for (int j = 0; j < w; j++) {
             printf("%+3.8f\t", blk[i][j]);
@@ -161,7 +170,7 @@ size_t mat_get_width(xMat mat) { return (size_t)mat[-2]; }
 
 size_t mat_get_height(xMat mat) { return (size_t)mat[-1]; }
 
-void mat_foreach_blk(xMat mat, int dim, imMatIterFn iter_func, void *payload)
+void mat_foreach_blk(xMat mat, int dim, xMatIterFn iter_func, void *payload)
 {
     if (iter_func == NULL)
         return;
@@ -258,7 +267,7 @@ void mat_add_n(xMat in, xReal n, xMat out)
     int h = mat_get_height(in);
 
     for (int i = 0; i < w * h; i++) {
-        out[i] = in[i] + n; // devide by zero?
+        out[i] = in[i] + n;
     }
 }
 
@@ -271,17 +280,4 @@ void mat_product_n(xMat in, xReal n, xMat out)
     for (int i = 0; i < w * h; i++) {
         out[i] = in[i] * n;
     }
-}
-
-xRLETable rtb_calloc(size_t cap) { return calloc(sizeof(xRLEItem), cap); }
-
-void rtb_print(xRLETable rtb, size_t size)
-{
-    printf("RLE Table [%ld]\n", size);
-
-    for (int i = 0; i < size; i++) {
-        printf("[(%d, %d)|%d] ", rtb[i].zeros, rtb[i].nbits, rtb[i].amp);
-    }
-
-    printf("\n");
 }

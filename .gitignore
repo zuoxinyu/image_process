@@ -2,10 +2,12 @@
 *.red
 *.grn
 *.pgm
+*.ppm
+*.png
+*.jpg
 
 main
-dcttran
-dctgen
+imgn
 
 .cache
 .ccls-cache

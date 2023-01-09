@@ -1,6 +1,8 @@
 #include <math.h>
 
+#ifdef USE_FFTW3
 #include <fftw3.h>
+#endif
 
 #include "dct.h"
 
@@ -12,6 +14,9 @@ void dct(xBlock dct_blk, xBlock blk, int dimX, int dimY)
                           FFTW_REDFT10, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
+
+    // rescale
+    // blk_product_n(dct_blk, 2.f / (dimX * dimY), dct_blk);
 }
 
 void idct(xBlock dct_blk, xBlock blk, int dimX, int dimY)
@@ -21,6 +26,9 @@ void idct(xBlock dct_blk, xBlock blk, int dimX, int dimY)
                           FFTW_REDFT01, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
+
+    // rescale
+    // blk_product_n(dct_blk, 1.f / (4.f * dimX * dimY), dct_blk);
 }
 
 #else

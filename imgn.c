@@ -25,7 +25,7 @@ enum FORMULA_ID {
 };
 
 static inline xReal min(xReal x, xReal y) { return x > y ? y : x; }
-// static inline int max(int x, int y) { return x > y ? x : y; } // NOLINT
+static inline xReal max(xReal x, xReal y) { return x > y ? x : y; }
 
 static xReal normalize(xBlock blk, xReal x, int i, int j, void *payload)
 {
@@ -47,6 +47,7 @@ void calculate_min_max(xBlock blk, int w, int h, xReal *minmax)
 
     for (int i = 0; i < w * h; i++) {
         minmax[0] = min(minmax[0], blk[0][i]);
+        minmax[1] = max(minmax[1], blk[0][i]);
     }
 }
 
@@ -73,15 +74,43 @@ int write_file(PPM *ppm, xBlock blk, const char *name)
     return ppm_write_file(ppm, name);
 }
 
+int gen_base_blks(int n)
+{
+    xMat mat = mat_calloc(n * n, n * n);
+    uint8_t *buf = malloc(sizeof(uint8_t) * n * n * n * n);
+    PPM *ppm = ppm_create(PPM_FMT_P5, n * n, n * n, buf);
+    xBlock blk = blk_calloc(n, n);
+    int i, j;
+
+    for (i = 0; i < n; i++) {
+        for (j = 0; j < n; j++) {
+            blk_clear(blk, 0);
+            blk[i][j] = 255;
+            idct(blk, blk, n, n);
+            mat_set_blk(mat, blk, i * n + j);
+        }
+    }
+
+    blk2uint8(&mat, buf, n * n, n * n);
+    write_file(ppm, &mat, "base.pgm");
+
+    mat_free(mat);
+    blk_free(blk);
+    ppm_free(ppm);
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
-    uint8_t *buf = malloc(sizeof(uint8_t) * N * N * 3);
+    uint8_t *buf = malloc(sizeof(uint8_t) * N * N);
     xBlock blk_idct = blk_calloc(N, N);
     xBlock blk_dct = blk_copy(blk_idct);
     PPM *ppm = ppm_create(PPM_FMT_P5, N, N, buf);
     ppm_dump_header(ppm);
 
     gen_blk(FORMULA_SIN, blk_idct, N, N);
+    blk_clear(blk_idct, 3);
     blk_print("sin", blk_idct, 0);
     write_file(ppm, blk_idct, "sin.pgm");
 
@@ -92,13 +121,28 @@ int main(int argc, char *argv[])
 
     xReal minmax[2];
     calculate_min_max(blk_dct, N, N, minmax);
-    blk_foreach(blk_dct, normalize, &minmax);
+    blk_foreachi(blk_dct, normalize, &minmax);
     blk_print("normalized dct", blk_dct, 0);
     write_file(ppm, blk_dct, "sin.dct.pgm");
 
-    blk_foreach(blk_idct, rescale, NULL);
+    blk_foreachi(blk_idct, rescale, NULL);
     blk_print("rescaled idct", blk_idct, 0);
     write_file(ppm, blk_idct, "sin.idct.pgm");
+
+    blk_clear(blk_idct, 0);
+    blk_idct[5][0] = 255;
+    blk_idct[0][5] = 255;
+    blk_print("test idct", blk_idct, 0);
+    write_file(ppm, blk_idct, "test.idct.pgm");
+
+    idct(blk_idct, blk_idct, N, N);
+    blk_foreachi(blk_idct, rescale, NULL);
+    calculate_min_max(blk_idct, N, N, minmax);
+    blk_foreachi(blk_idct, normalize, &minmax);
+    blk_print("test dct", blk_idct, 0);
+    write_file(ppm, blk_idct, "test.dct.pgm");
+
+    // gen_base_blks(8);
 
     ppm_free(ppm);
     blk_free(blk_dct);

@@ -2,8 +2,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 typedef enum Channel {
     CHAN_Y = 0x01,

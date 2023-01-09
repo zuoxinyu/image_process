@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <string.h>
+
 #include "pxb.h"
 
 size_t fmt_get_size(PixelFormat fmt, size_t w, size_t h)
