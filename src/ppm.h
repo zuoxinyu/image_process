@@ -1,5 +1,9 @@
-#pragma once
+#ifndef _PPM_H_
+#define _PPM_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <stdint.h>
 #include <stdio.h>
 
@@ -42,3 +46,8 @@ int ppm_read_header(FILE *f, PPM *ppm);
 int ppm_read_data(FILE *f, PPM *ppm);
 PPM *ppm_read_file(const char *name);
 int ppm_write_file(PPM *ppm, const char *name);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

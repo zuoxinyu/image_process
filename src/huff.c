@@ -134,3 +134,28 @@ const int jpec_ac_code[256] = {
 	0xfffc,0xfffd,0xfffe,0x0000,0x0000,0x0000,0x0000,0x0000
 };
 // clang-format on
+
+int huff_encode_tbl(uint32_t *bitbuf, xRLETable tbl)
+{
+
+    size_t tbl_len = rtb_get_size(tbl);
+    for (int i = 0; i < tbl_len; i++) {
+        uint8_t rs = *(uint8_t *)(&tbl[i].rs);
+        int8_t rs_len = jpec_ac_len[rs];
+        int rs_code = jpec_ac_code[rs];
+        huff_encode_bits(NULL, rs_len, rs_code);
+        int16_t amp = tbl[i].amp;
+        if (amp < 0) {
+            amp -= 1;
+        }
+
+        huff_encode_bits(bitbuf, tbl[i].rs.nbits, amp);
+    }
+
+    return 0;
+}
+
+int huff_encode_bits(uint32_t *bitbuf, uint16_t nbits, uint16_t bits)
+{
+    return 0;
+}

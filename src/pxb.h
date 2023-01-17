@@ -1,5 +1,9 @@
-#pragma once
+#ifndef _PXB_H_
+#define _PXB_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -36,3 +40,8 @@ PixelBuffer *pxb_new(PixelFormat fmt, size_t w, size_t h, const uint8_t *buf);
 PixelBuffer *pxb_copy(const PixelBuffer *src, int mask);
 void pxb_free(PixelBuffer *pxb);
 void pxb_remove_channels(PixelBuffer *pxb, int mask);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

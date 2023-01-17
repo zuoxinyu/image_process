@@ -9,6 +9,7 @@
 
 #include "src/blk.h"
 #include "src/dct.h"
+#include "src/huff.h"
 #include "src/ppm.h"
 #include "src/pxb.h"
 #include "src/rle.h"
@@ -266,7 +267,7 @@ static xBlock dequantize_block(xMat mat, xBlock blk, int idx, void *_payload)
  * 3. split to 8x8 blocks for each plannar
  * 4. DCT <- current here
  * 5. run-length compression
- * 6. entropy
+ * 6. entropy(huffman olny)
  */
 int main(int argc, char *argv[])
 {
@@ -284,6 +285,7 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    printf("\n======== origin ========\n");
     PPM *ppm = ppm_read_file(file_name);
     size_t w = ppm->width, h = ppm->height;
 
@@ -343,13 +345,11 @@ int main(int argc, char *argv[])
 
     // run-length
     xRLETable tbl = rtb_calloc(N * N);
-    int tbl_len = run_length(tbl, zigzag_blk);
+    int tbl_len = rtb_parse(tbl, zigzag_blk);
     rtb_print(tbl, tbl_len);
 
     // huffman
-    for (int i = 0; i < tbl_len; i++) {
-        
-    }
+    huff_encode_tbl(NULL, tbl);
 
     printf("\n========decoding========\n");
 

@@ -1,4 +1,9 @@
-#pragma once
+#ifndef _BLK_H_
+#define _BLK_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stddef.h>
 #include <stdint.h>
@@ -54,3 +59,8 @@ void mat_product(xMat a, xMat b, xMat c);
 void mat_devide(xMat a, xMat b, xMat c);
 void mat_add_n(xMat in, xReal n, xMat out);
 void mat_product_n(xMat in, xReal n, xMat out);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
